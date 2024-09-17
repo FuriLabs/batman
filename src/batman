@@ -870,23 +870,6 @@ do
         CHARGE=$(batman-helper battery)
     fi
 
-    # an attempt to fix choppy audio when system goes to sleep by lowering the number of cores that go offline if there is an audio playing
-    if ! [ "${ARCH}" = "x86_64" ] && ! [ "${ARCH}" = "i686" ]; then
-        if cat /proc/asound/card*/pcm*/sub*/status | grep -q RUNNING; then
-            if [ "${LASTPOLCORE}" -ge "${OFFLINE_COUNT}" ]; then
-                LASTPOLCORE=$((LASTPOLCORE/2))
-                if [ "${OFFLINE}" = "true" ] && [ "${SCREEN}" = "no" ]; then
-                    LASTPOLCORE_TMP="${LASTPOLCORE}"
-                    LASTPOLCORE="${OFFLINE_COUNT}"
-                    online
-                    LASTPOLCORE="${LASTPOLCORE_TMP}"
-                    delay 0.3
-                    offline
-                fi
-            fi
-        fi
-    fi
-
     if [ "${SCREEN}" = yes ]; then
         LASTPOLCORE="${OFFLINE_COUNT}"
     fi
@@ -982,12 +965,6 @@ do
 
     if [ "${SCREEN_OLD}" != "${SCREEN}" ]; then
        echo "${SCREEN}" > /var/lib/batman/screen
-    fi
-
-    if ! [ "${ARCH}" = "x86_64" ] && ! [ "${ARCH}" = "i686" ]; then
-        if ! cat /proc/asound/card*/pcm*/sub*/status | grep -q RUNNING; then
-            LASTPOLCORE="${OFFLINE_COUNT}"
-        fi
     fi
 
     # To not do as many useless iterations wait here for some time when the screen is on or when user is using the device.
