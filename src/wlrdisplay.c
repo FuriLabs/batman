@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
+// Copyright (c) 2019 Purism SPC
+// Copyright (c) 2019 The wlr-randr Contributors
 // Copyright (C) 2024 Bardia Moshiri <fakeshell@bardia.tech>
 
 #include <stdbool.h>
