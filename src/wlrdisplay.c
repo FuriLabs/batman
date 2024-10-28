@@ -145,42 +145,6 @@ WL_PRIVATE const struct wl_interface zwlr_output_configuration_head_v1_interface
     0, NULL,
 };
 
-static void free_randr_mode(struct randr_mode *mode) {
-    if (!mode)
-        return;
-
-    wl_list_remove(&mode->link);
-
-    free(mode);
-}
-
-static void free_randr_head(struct randr_head *head) {
-    if (!head)
-        return;
-
-    struct randr_mode *mode, *tmp_mode;
-    wl_list_for_each_safe(mode, tmp_mode, &head->modes, link) {
-        free_randr_mode(mode);
-    }
-
-    free(head->name);
-    free(head->description);
-
-    wl_list_remove(&head->link);
-
-    free(head);
-}
-
-static void cleanup_state(struct randr_state *state) {
-    if (!state)
-        return;
-
-    struct randr_head *head, *tmp_head;
-    wl_list_for_each_safe(head, tmp_head, &state->heads, link) {
-        free_randr_head(head);
-    }
-}
-
 static void mode_handle_size(void *data,
         struct zwlr_output_mode_v1 *wlr_mode, int32_t width, int32_t height) {
     // Left blank intentionally
@@ -191,14 +155,18 @@ static void mode_handle_refresh(void *data,
     // Left blank intentionally
 }
 
-static void mode_handle_preferred(void *data, struct zwlr_output_mode_v1 *wlr_mode) {
+static void mode_handle_preferred(void *data,
+        struct zwlr_output_mode_v1 *wlr_mode) {
     struct randr_mode *mode = data;
     mode->preferred = true;
 }
 
-static void mode_handle_finished(void *data, struct zwlr_output_mode_v1 *wlr_mode) {
+static void mode_handle_finished(void *data,
+        struct zwlr_output_mode_v1 *wlr_mode) {
     struct randr_mode *mode = data;
-    free_randr_mode(mode);
+    wl_list_remove(&mode->link);
+    zwlr_output_mode_v1_destroy(mode->wlr_mode);
+    free(mode);
 }
 
 static const struct zwlr_output_mode_v1_listener mode_listener = {
@@ -230,13 +198,11 @@ static void head_handle_physical_size(void *data,
 }
 
 static void head_handle_mode(void *data,
-        struct zwlr_output_head_v1 *wlr_head, struct zwlr_output_mode_v1 *wlr_mode) {
+        struct zwlr_output_head_v1 *wlr_head,
+        struct zwlr_output_mode_v1 *wlr_mode) {
     struct randr_head *head = data;
 
     struct randr_mode *mode = calloc(1, sizeof(*mode));
-    if (!mode)
-        return;
-
     mode->head = head;
     mode->wlr_mode = wlr_mode;
     wl_list_insert(&head->modes, &mode->link);
@@ -253,7 +219,8 @@ static void head_handle_enabled(void *data,
 }
 
 static void head_handle_current_mode(void *data,
-        struct zwlr_output_head_v1 *wlr_head, struct zwlr_output_mode_v1 *wlr_mode) {
+        struct zwlr_output_head_v1 *wlr_head,
+        struct zwlr_output_mode_v1 *wlr_mode) {
     struct randr_head *head = data;
     struct randr_mode *mode;
 
@@ -263,6 +230,9 @@ static void head_handle_current_mode(void *data,
             return;
         }
     }
+
+    fprintf(stderr, "received unknown current_mode\n");
+    head->mode = NULL;
 }
 
 static void head_handle_position(void *data,
@@ -280,9 +250,14 @@ static void head_handle_scale(void *data,
     // Left blank intentionally
 }
 
-static void head_handle_finished(void *data, struct zwlr_output_head_v1 *wlr_head) {
+static void head_handle_finished(void *data,
+        struct zwlr_output_head_v1 *wlr_head) {
     struct randr_head *head = data;
-    free_randr_head(head);
+    wl_list_remove(&head->link);
+    zwlr_output_head_v1_destroy(head->wlr_head);
+    free(head->name);
+    free(head->description);
+    free(head);
 }
 
 static const struct zwlr_output_head_v1_listener head_listener = {
@@ -304,11 +279,6 @@ static void output_manager_handle_head(void *data,
     struct randr_state *state = data;
 
     struct randr_head *head = calloc(1, sizeof(*head));
-    if (!head) {
-        fprintf(stderr, "Failed to allocate head\n");
-        return;
-    }
-
     head->state = state;
     head->wlr_head = wlr_head;
     wl_list_init(&head->modes);
@@ -431,8 +401,6 @@ int wlrdisplay(int argc, char *argv[]) {
     }
 
 cleanup:
-    cleanup_state(&state);
-
     if (state.output_manager)
         zwlr_output_manager_v1_destroy(state.output_manager);
     if (registry)
