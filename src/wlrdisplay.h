@@ -68,18 +68,6 @@ zwlr_output_manager_v1_add_listener(struct zwlr_output_manager_v1 *zwlr_output_m
 }
 
 static inline void
-zwlr_output_head_v1_destroy(struct zwlr_output_head_v1 *zwlr_output_head_v1)
-{
-        wl_proxy_destroy((struct wl_proxy *) zwlr_output_head_v1);
-}
-
-static inline void
-zwlr_output_mode_v1_destroy(struct zwlr_output_mode_v1 *zwlr_output_mode_v1)
-{
-        wl_proxy_destroy((struct wl_proxy *) zwlr_output_mode_v1);
-}
-
-static inline void
 zwlr_output_manager_v1_destroy(struct zwlr_output_manager_v1 *zwlr_output_manager_v1)
 {
 	wl_proxy_destroy((struct wl_proxy *) zwlr_output_manager_v1);
@@ -135,6 +123,12 @@ zwlr_output_head_v1_add_listener(struct zwlr_output_head_v1 *zwlr_output_head_v1
 				     (void (**)(void)) listener, data);
 }
 
+static inline void
+zwlr_output_head_v1_destroy(struct zwlr_output_head_v1 *zwlr_output_head_v1)
+{
+        wl_proxy_destroy((struct wl_proxy *) zwlr_output_head_v1);
+}
+
 struct zwlr_output_mode_v1_listener {
 	void (*size)(void *data,
 		     struct zwlr_output_mode_v1 *zwlr_output_mode_v1,
@@ -158,6 +152,12 @@ zwlr_output_mode_v1_add_listener(struct zwlr_output_mode_v1 *zwlr_output_mode_v1
 {
 	return wl_proxy_add_listener((struct wl_proxy *) zwlr_output_mode_v1,
 				     (void (**)(void)) listener, data);
+}
+
+static inline void
+zwlr_output_mode_v1_destroy(struct zwlr_output_mode_v1 *zwlr_output_mode_v1)
+{
+        wl_proxy_destroy((struct wl_proxy *) zwlr_output_mode_v1);
 }
 
 struct zwlr_output_configuration_v1_listener {

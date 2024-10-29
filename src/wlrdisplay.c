@@ -42,8 +42,10 @@ struct randr_head {
 
 struct randr_state {
     struct zwlr_output_manager_v1 *output_manager;
+
     struct wl_list heads;
     uint32_t serial;
+    bool has_serial;
     bool running;
 };
 
@@ -291,6 +293,7 @@ static void output_manager_handle_done(void *data,
         struct zwlr_output_manager_v1 *manager, uint32_t serial) {
     struct randr_state *state = data;
     state->serial = serial;
+    state->has_serial = true;
 }
 
 static void output_manager_handle_finished(void *data,
@@ -313,10 +316,8 @@ static void registry_handle_global(void *data, struct wl_registry *registry,
     if (strcmp(interface, zwlr_output_manager_v1_interface.name) == 0) {
         state->output_manager = wl_registry_bind(registry, name,
             &zwlr_output_manager_v1_interface, 1);
-        if (state->output_manager) {
-            zwlr_output_manager_v1_add_listener(state->output_manager,
-                &output_manager_listener, state);
-        }
+        zwlr_output_manager_v1_add_listener(state->output_manager,
+            &output_manager_listener, state);
     }
 }
 
@@ -351,7 +352,7 @@ int wlrdisplay(int argc, char *argv[]) {
     int result = EXIT_FAILURE;
     struct wl_display *display = NULL;
     struct wl_registry *registry = NULL;
-    struct randr_state state = { 0 };
+    struct randr_state state = { .running = true };
 
     state.running = true;
     wl_list_init(&state.heads);
@@ -373,32 +374,45 @@ int wlrdisplay(int argc, char *argv[]) {
         goto cleanup;
     }
 
-    if (wl_display_dispatch(display) < 0 ) {
-	fprintf(stderr, "display dispatch failed in main loop\n");
-	goto cleanup;
-    }
-
     if (wl_display_roundtrip(display) < 0) {
         fprintf(stderr, "initial roundtrip failed\n");
         goto cleanup;
     }
 
-    if (!state.output_manager) {
+    if (state.output_manager == NULL) {
         fprintf(stderr, "compositor doesn't support wlr-output-management-unstable-v1\n");
         goto cleanup;
     }
 
-    result = get_state(&state);
-
-    while (state.running) {
+    while (!state.has_serial) {
         if (wl_display_dispatch(display) < 0) {
-            fprintf(stderr, "display dispatch failed in main loop\n");
+            fprintf(stderr, "wl_display_dispatch failed\n");
             result = EXIT_FAILURE;
             break;
         }
     }
 
+    result = get_state(&state);
+
+    while (state.running && wl_display_dispatch(display) != -1) {
+        // This space intentionally left blank
+    }
+
 cleanup:
+
+    struct randr_head *head, *tmp_head;
+    wl_list_for_each_safe(head, tmp_head, &state.heads, link) {
+        struct randr_mode *mode, *tmp_mode;
+        wl_list_for_each_safe(mode, tmp_mode, &head->modes, link) {
+            zwlr_output_mode_v1_destroy(mode->wlr_mode);
+            free(mode);
+        }
+        zwlr_output_head_v1_destroy(head->wlr_head);
+        free(head->name);
+        free(head->description);
+        free(head);
+    }
+
     if (state.output_manager)
         zwlr_output_manager_v1_destroy(state.output_manager);
     if (registry)
