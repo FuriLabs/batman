@@ -373,6 +373,11 @@ int wlrdisplay(int argc, char *argv[]) {
         goto cleanup;
     }
 
+    if (wl_display_dispatch(display) < 0 ) {
+	fprintf(stderr, "display dispatch failed in main loop\n");
+	goto cleanup;
+    }
+
     if (wl_display_roundtrip(display) < 0) {
         fprintf(stderr, "initial roundtrip failed\n");
         goto cleanup;
@@ -381,13 +386,6 @@ int wlrdisplay(int argc, char *argv[]) {
     if (!state.output_manager) {
         fprintf(stderr, "compositor doesn't support wlr-output-management-unstable-v1\n");
         goto cleanup;
-    }
-
-    while (state.serial == 0) {
-        if (wl_display_dispatch(display) < 0) {
-            fprintf(stderr, "display dispatch failed while waiting for serial\n");
-            goto cleanup;
-        }
     }
 
     result = get_state(&state);
