@@ -803,9 +803,7 @@ chown -R "${UIDS}":"${UIDS}" /var/lib/batman
 
 while true
 do
-    XDG_RUNTIME_DIR=/run/user/$UIDS/ batman-helper block_wlroots_available
-
-    source <(tail -n +2 "${CONFIG_FILE}")
+    SCREEN_OLD="$(</var/lib/batman/screen)"
 
     if [ "${CHARGESAVE}" = "true" ]; then
         CHARGE="discharging"
@@ -934,12 +932,17 @@ do
 
     if [ "${SCREEN_OLD}" != "${SCREEN}" ]; then
        echo "${SCREEN}" > /var/lib/batman/screen
-       SCREEN_OLD="${SCREEN}"
     fi
 
-    # if the screen state changes when device state was being changed from online to offline and viceversa, do one more iteration
-    SCREEN=$(XDG_RUNTIME_DIR=/run/user/$UIDS/ batman-helper retry_wlroots_changed "${SCREEN}" 1000 10)
-    if [ "${SCREEN}" == "${SCREEN_OLD}" ]; then
-        batman-helper block_display_changed
+    # To not do as many useless iterations wait here for some time when the screen is on or when user is using the device.
+    if [ "${SCREEN}" = "yes" ]; then
+       if [ "${SCREEN_OLD}" = "no" ]; then
+          delay 0.3
+       else
+          delay 10
+          source <(tail -n +2 "${CONFIG_FILE}")
+       fi
+    else
+       delay 0.3
     fi
 done
