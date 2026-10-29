@@ -113,7 +113,6 @@ device_node_apply_save_tweaks(void)
     dn_write_int_if_exists("/proc/cpufreq/cpufreq_power_mode", 1);
     dn_write_int_if_exists("/proc/cpufreq/cpufreq_cci_mode", 0);
     dn_write_int_if_exists("/proc/cpufreq/cpufreq_sched_disable", 1);
-    dn_write_int_if_exists("/proc/cpufreq/cpufreq_stress_test", 1);
     dn_write_int_if_exists("/proc/cpufreq/MT_CPU_DVFS_CCI/cpufreq_turbo_mode", 0);
     dn_write_int_if_exists("/proc/cpufreq/MT_CPU_DVFS_L/cpufreq_turbo_mode", 0);
     dn_write_int_if_exists("/proc/cpufreq/MT_CPU_DVFS_LL/cpufreq_turbo_mode", 0);
@@ -177,7 +176,6 @@ device_node_apply_boost_tweaks(void)
     dn_write_int_if_exists("/proc/cpufreq/cpufreq_power_mode", 3);
     dn_write_int_if_exists("/proc/cpufreq/cpufreq_cci_mode", 1);
     dn_write_int_if_exists("/proc/cpufreq/cpufreq_sched_disable", 0);
-    dn_write_int_if_exists("/proc/cpufreq/cpufreq_stress_test", 1);
     dn_write_int_if_exists("/proc/cpufreq/MT_CPU_DVFS_CCI/cpufreq_turbo_mode", 1);
     dn_write_int_if_exists("/proc/cpufreq/MT_CPU_DVFS_L/cpufreq_turbo_mode", 1);
     dn_write_int_if_exists("/proc/cpufreq/MT_CPU_DVFS_LL/cpufreq_turbo_mode", 1);
