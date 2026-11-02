@@ -110,12 +110,12 @@ handle_sigint(int sig)
     keep_going = 0;
 }
 
-char *
+const char *
 get_node_name(const char *path)
 {
-    char *last_slash = strrchr(path, '/');
+    const char *last_slash = strrchr(path, '/');
     if (last_slash != NULL) {
-        char *second_last_slash = last_slash;
+        const char *second_last_slash = last_slash;
         while (second_last_slash > path) {
             --second_last_slash;
             if (*second_last_slash == '/')
