@@ -42,6 +42,7 @@ struct PpdContext {
     char *performance_inhibited;
     char *performance_degraded;
     gboolean overdrive_enabled;
+    gboolean screen_off;
 
     guint32 next_cookie;
     GPtrArray *holds;
@@ -194,10 +195,12 @@ state_set_profile(const char *profile)
 }
 
 static void
-parse_gpufreq_opp_dump(long long *out_low, long long *out_high)
+parse_gpufreq_opp_dump(long long *out_low, long long *out_middle, long long *out_high)
 {
     if (out_low)
         *out_low = 0;
+    if (out_middle)
+        *out_middle = 0;
     if (out_high)
         *out_high = 0;
 
@@ -210,39 +213,32 @@ parse_gpufreq_opp_dump(long long *out_low, long long *out_high)
 
     long long low = 0;
     long long high = 0;
+    GArray *freqs = g_array_new(FALSE, FALSE, sizeof(long long));
 
     char line[512];
     while (fgets(line, sizeof(line), fp) != NULL) {
-        const char *p = strstr(line, "freq");
-        if (!p)
+        unsigned int idx;
+        long long freq;
+        if (sscanf(line, "[%u] freq = %lld", &idx, &freq) != 2 || freq <= 0)
             continue;
 
-        const char *eq = strchr(p, '=');
-        if (!eq)
-            continue;
-
-        eq++;
-        while (*eq == ' ' || *eq == '\t')
-            eq++;
-
-        errno = 0;
-        char *endp = NULL;
-        long long v = strtoll(eq, &endp, 10);
-        if (errno != 0 || endp == eq)
-            continue;
-
-        if (low == 0 || v < low)
-            low = v;
-        if (v > high)
-            high = v;
+        if (low == 0 || freq < low)
+            low = freq;
+        if (freq > high)
+            high = freq;
+        g_array_append_val(freqs, freq);
     }
 
     fclose(fp);
 
     if (out_low)
         *out_low = low;
+    if (out_middle && freqs->len > 0)
+        *out_middle = g_array_index(freqs, long long, (freqs->len - 1) / 2);
     if (out_high)
         *out_high = high;
+
+    g_array_free(freqs, TRUE);
 }
 
 static void
@@ -409,8 +405,10 @@ apply_backend_profile(PpdContext *ppd,
         write_str(CUSTOM_DEFAULT_GOVERNOR_FILE, "performance");
 
         long long low = 0, high = 0;
-        parse_gpufreq_opp_dump(&low, &high);
-        if (high > 0)
+        parse_gpufreq_opp_dump(&low, NULL, &high);
+        if (ppd->screen_off && low > 0)
+            write_gpufreq_opp_freq(low);
+        else if (high > 0)
             write_gpufreq_opp_freq(high);
 
         if (cpu) {
@@ -435,7 +433,17 @@ apply_backend_profile(PpdContext *ppd,
         else if (exists(CUSTOM_DEFAULT_GOVERNOR_FILE))
             unlink(CUSTOM_DEFAULT_GOVERNOR_FILE);
 
-        write_gpufreq_opp_freq(0);
+        if (ppd->screen_off) {
+            long long low = 0, high = 0;
+            parse_gpufreq_opp_dump(&low, NULL, &high);
+            if (low > 0)
+                write_gpufreq_opp_freq(low);
+        } else {
+            long long middle = 0;
+            parse_gpufreq_opp_dump(NULL, &middle, NULL);
+            if (middle > 0)
+                write_gpufreq_opp_freq(middle);
+        }
 
         if (cpu) {
             cpu_refresh_overrides(cpu);
@@ -462,7 +470,7 @@ apply_backend_profile(PpdContext *ppd,
         write_str(CUSTOM_DEFAULT_GOVERNOR_FILE, "powersave");
 
         long long low = 0, high = 0;
-        parse_gpufreq_opp_dump(&low, &high);
+        parse_gpufreq_opp_dump(&low, NULL, &high);
         if (low > 0)
             write_gpufreq_opp_freq(low);
 
@@ -472,6 +480,42 @@ apply_backend_profile(PpdContext *ppd,
             cpu_apply_default(cpu);
         }
         return;
+    }
+}
+
+void
+ppd_set_screen_off(PpdContext *ppd, gboolean screen_off)
+{
+    if (!ppd || ppd->screen_off == screen_off)
+        return;
+
+    ppd->screen_off = screen_off;
+
+    if (screen_off) {
+        long long low = 0, high = 0;
+        parse_gpufreq_opp_dump(&low, NULL, &high);
+        if (low > 0)
+            write_gpufreq_opp_freq(low);
+    } else if (ppd->overdrive_enabled) {
+        long long low = 0, high = 0;
+        parse_gpufreq_opp_dump(&low, NULL, &high);
+        if (high > 0)
+            write_gpufreq_opp_freq(high);
+    } else if (g_strcmp0(ppd->active_profile, "performance") == 0) {
+        long long low = 0, high = 0;
+        parse_gpufreq_opp_dump(&low, NULL, &high);
+        if (high > 0)
+            write_gpufreq_opp_freq(high);
+    } else if (g_strcmp0(ppd->active_profile, "power-saver") == 0) {
+        long long low = 0, high = 0;
+        parse_gpufreq_opp_dump(&low, NULL, &high);
+        if (low > 0)
+            write_gpufreq_opp_freq(low);
+    } else {
+        long long middle = 0;
+        parse_gpufreq_opp_dump(NULL, &middle, NULL);
+        if (middle > 0)
+            write_gpufreq_opp_freq(middle);
     }
 }
 

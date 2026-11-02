@@ -36,4 +36,13 @@ ppd_cleanup(PpdContext *ppd);
 gboolean
 ppd_is_overdrive_enabled(const PpdContext *ppd);
 
+/**
+ * Set GPU to minimum OPP on screen off and restore it on screen on.
+ *
+ * @param ppd PpdContext
+ * @param screen_off TRUE if screen is off, otherwise FALSE
+ */
+void
+ppd_set_screen_off(PpdContext *ppd, gboolean screen_off);
+
 #endif /* PPD_H */

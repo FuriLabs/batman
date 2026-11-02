@@ -520,6 +520,7 @@ app_apply_state(BatmanApp *app,
         return;
 
     app_nice_apply(app, screen_on);
+    ppd_set_screen_off(app->ppd, !screen_on);
 
     /* if charging and CHARGESAVE=false, neutralize and do nothing */
     if (!app_savings_allowed(app)) {
