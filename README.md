@@ -27,6 +27,30 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now batman
 ```
 
+# libbatman
+
+The tuning engine (CPU, GPU, devfreq, Bluetooth, WiFi, binder power hints,
+process niceness) is built as `libbatman.so`, so a daemon on another platform
+can drive it with its own screen, battery and audio events. It only needs
+glib, libgbinder and libnl. The API is in `include/batman.h`, installed as
+`<batman/batman.h>` with a `libbatman` pkg-config file.
+
+To build and install only the library, without the FuriOS daemon and its
+upower, PulseAudio and wayland dependencies:
+
+```
+make lib
+sudo make install-lib
+```
+
+The library goes to `$(PREFIX)/lib/<triplet>` by default; distributions that
+use a plain `/usr/lib` can pass `LIBDIR=/usr/lib`. `CFLAGS`, `CPPFLAGS` and
+`LDFLAGS` from the environment or the command line are honoured.
+
+[luna-batman](https://github.com/webOS-ports/luna-batman) is a complete
+example: the LuneOS daemon that feeds libbatman the display state, the
+charger state and audio playback from luna-service2.
+
 # Configuration
 
 `POWERSAVE`

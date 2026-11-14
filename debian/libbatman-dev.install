@@ -1,0 +1,3 @@
+usr/include/batman
+usr/lib/*/libbatman.so
+usr/lib/*/pkgconfig/libbatman.pc
