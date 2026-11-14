@@ -32,7 +32,10 @@ binder_init_power_aidl(void)
         return NULL;
     }
 
-    ctx->remote = gbinder_servicemanager_get_service_sync(ctx->sm, POWER_AIDL_IFACE "/" POWER_AIDL_NAME, NULL);
+    /* get_service_sync() returns an autoreleased object: take our own reference,
+     * dropped in the error path below and in binder_cleanup() */
+    ctx->remote = gbinder_remote_object_ref(
+        gbinder_servicemanager_get_service_sync(ctx->sm, POWER_AIDL_IFACE "/" POWER_AIDL_NAME, NULL));
     if (!ctx->remote) {
         g_debug("binder: AIDL power service not found");
         gbinder_servicemanager_unref(ctx->sm);
@@ -72,7 +75,10 @@ binder_init_power_hidl(void)
         return NULL;
     }
 
-    ctx->remote = gbinder_servicemanager_get_service_sync(ctx->sm, POWER_HIDL_IFACE "/" POWER_HIDL_NAME, NULL);
+    /* get_service_sync() returns an autoreleased object: take our own reference,
+     * dropped in the error path below and in binder_cleanup() */
+    ctx->remote = gbinder_remote_object_ref(
+        gbinder_servicemanager_get_service_sync(ctx->sm, POWER_HIDL_IFACE "/" POWER_HIDL_NAME, NULL));
     if (!ctx->remote) {
         g_debug("binder: HIDL power service not found");
         gbinder_servicemanager_unref(ctx->sm);
@@ -112,7 +118,10 @@ binder_init_vr_hidl(void)
         return NULL;
     }
 
-    ctx->remote = gbinder_servicemanager_get_service_sync(ctx->sm, VR_HIDL_IFACE "/" VR_HIDL_NAME, NULL);
+    /* get_service_sync() returns an autoreleased object: take our own reference,
+     * dropped in the error path below and in binder_cleanup() */
+    ctx->remote = gbinder_remote_object_ref(
+        gbinder_servicemanager_get_service_sync(ctx->sm, VR_HIDL_IFACE "/" VR_HIDL_NAME, NULL));
     if (!ctx->remote) {
         g_debug("binder: VR service not found");
         gbinder_servicemanager_unref(ctx->sm);
@@ -152,7 +161,10 @@ binder_init_mtkpower_hidl(void)
         return NULL;
     }
 
-    ctx->remote = gbinder_servicemanager_get_service_sync(ctx->sm, MTKPOWER_HIDL_IFACE "/" MTKPOWER_HIDL_NAME, NULL);
+    /* get_service_sync() returns an autoreleased object: take our own reference,
+     * dropped in the error path below and in binder_cleanup() */
+    ctx->remote = gbinder_remote_object_ref(
+        gbinder_servicemanager_get_service_sync(ctx->sm, MTKPOWER_HIDL_IFACE "/" MTKPOWER_HIDL_NAME, NULL));
     if (!ctx->remote) {
         g_debug("binder: MTK power service not found");
         gbinder_servicemanager_unref(ctx->sm);
