@@ -73,6 +73,8 @@ config_set_defaults(BatmanConfig *cfg)
     cfg->bluetooth_powersave_enabled = TRUE;
     cfg->binder_enabled = FALSE;
     cfg->wifi_enabled = FALSE;
+    cfg->tweaks_enabled = TRUE;
+    cfg->boost_enabled = TRUE;
 
     cfg->devfreq_gpu_path[0] = '\0';
     cfg->config_path[0] = '\0';
@@ -163,6 +165,10 @@ config_load(BatmanConfig *cfg)
             cfg->binder_enabled = config_parse_bool(val, cfg->binder_enabled);
         else if (strcmp(key, "WIFI") == 0)
             cfg->wifi_enabled = config_parse_bool(val, cfg->wifi_enabled);
+        else if (strcmp(key, "TWEAKS") == 0)
+            cfg->tweaks_enabled = config_parse_bool(val, cfg->tweaks_enabled);
+        else if (strcmp(key, "BOOST") == 0)
+            cfg->boost_enabled = config_parse_bool(val, cfg->boost_enabled);
         else if (strcmp(key, "DEVFREQ_GPU_PATH") == 0)
             g_strlcpy(cfg->devfreq_gpu_path, val, sizeof(cfg->devfreq_gpu_path));
     }
@@ -178,6 +184,8 @@ config_load(BatmanConfig *cfg)
     g_debug("  BTSAVE=%d", cfg->bluetooth_powersave_enabled);
     g_debug("  BINDER=%d", cfg->binder_enabled);
     g_debug("  WIFI=%d", cfg->wifi_enabled);
+    g_debug("  TWEAKS=%d", cfg->tweaks_enabled);
+    g_debug("  BOOST=%d", cfg->boost_enabled);
     g_debug("  DEVFREQ_GPU_PATH=%s", cfg->devfreq_gpu_path[0] ? cfg->devfreq_gpu_path : "(unset)");
 }
 

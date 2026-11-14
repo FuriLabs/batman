@@ -20,9 +20,13 @@ typedef struct {
 /**
  * Device node context.
  */
+#define DEVICE_NODE_TWEAK_MAX 64
+
 typedef struct {
     DeviceGovernorNode governors[96];  /** Discovered devfreq governor nodes */
     int governor_count;               /** Count of governors[] used */
+    char tweak_orig[DEVICE_NODE_TWEAK_MAX][64]; /** Pre-batman value per tweak knob, "" if not restorable */
+    gboolean tweaks_saved;            /** BOOST=false: save values are applied and need restoring */
 } DeviceNodeContext;
 
 /**
@@ -40,7 +44,7 @@ device_node_init(DeviceNodeContext *dn);
  * @param cfg configuration toggles
  */
 void
-device_node_apply_powersave(const DeviceNodeContext *dn, const BatmanConfig *cfg);
+device_node_apply_powersave(DeviceNodeContext *dn, const BatmanConfig *cfg);
 
 /**
  * Apply device-node defaults/performance.
@@ -49,6 +53,6 @@ device_node_apply_powersave(const DeviceNodeContext *dn, const BatmanConfig *cfg
  * @param cfg configuration toggles
  */
 void
-device_node_apply_default(const DeviceNodeContext *dn, const BatmanConfig *cfg);
+device_node_apply_default(DeviceNodeContext *dn, const BatmanConfig *cfg);
 
 #endif /* DEVICE_NODE_H */

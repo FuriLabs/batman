@@ -59,3 +59,18 @@ This option will use binder IPC to set various pieces of hardware to powersave m
 
 `WIFI`
 This option will set the WiFi adapter to powersave mode.
+
+
+`TWEAKS`
+This option writes the vendor tuning knobs (MediaTek cpufreq/GED/FPSGO/perfmgr,
+Qualcomm LPM, UFS clock gating, schedtune): low-power values at screen off,
+boost values at screen on. Defaults to true. Set it to false to leave those
+knobs alone and only switch governors and send power HAL hints.
+
+
+`BOOST`
+With `TWEAKS` on, this option writes the boost values at screen on. Defaults to
+true. When false, screen on puts back the values the knobs had before batman
+first touched them instead; knobs whose value cannot be read back in the form it
+is written (some MediaTek /proc/cpufreq nodes) are then left alone at screen
+off too.

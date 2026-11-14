@@ -7,3 +7,5 @@ GPUSAVE=true
 BTSAVE=true
 HYBRIS=true
 WIFI=true
+TWEAKS=true
+BOOST=true
