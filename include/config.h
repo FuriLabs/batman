@@ -24,6 +24,8 @@ struct BatmanConfig {
     gboolean bluetooth_powersave_enabled;     /** Enable bluetooth auto power off/on */
     gboolean binder_enabled;                  /** Enable binder power control */
     gboolean wifi_enabled;                    /** Enable wifi suspend/resume */
+    gboolean tweaks_enabled;                  /** Write the vendor tweak knobs (MTK/QCOM/UFS/...) */
+    gboolean boost_enabled;                   /** Boost those knobs at screen on; if false, restore their original values */
 
     char devfreq_gpu_path[4096];              /** Optional override for GPU devfreq path */
     char config_path[4096];                   /** Resolved config file path used */

@@ -6,6 +6,8 @@
 #include "device_node.h"
 #include "utils.h"
 
+#include <errno.h>
+
 static void
 dn_add_governor(DeviceNodeContext *dn, const char *path)
 {
@@ -23,7 +25,7 @@ dn_add_governor(DeviceNodeContext *dn, const char *path)
     it = &dn->governors[dn->governor_count];
     memset(it, 0, sizeof(*it));
 
-    it->present = FALSE;
+    it->present = TRUE;
     g_strlcpy(it->path, path, sizeof(it->path));
 
     if (!read_str(path, it->default_value, sizeof(it->default_value)))
@@ -32,12 +34,7 @@ dn_add_governor(DeviceNodeContext *dn, const char *path)
     dn->governor_count++;
 }
 
-static void
-dn_write_int_if_exists(const char *path, long long value)
-{
-    if (exists(path))
-        write_int(path, value);
-}
+static void dn_tweak_orig_capture(DeviceNodeContext *dn);
 
 static void
 dn_write_str_if_exists(const char *path, const char *value)
@@ -104,136 +101,216 @@ device_node_init(DeviceNodeContext *dn)
     dn_add_governor(dn, "/sys/class/devfreq/gs_memlat_devfreq:devfreq_mif_cpu5_memlat@17000010/governor");
     dn_add_governor(dn, "/sys/class/devfreq/gs_memlat_devfreq:devfreq_mif_cpu6_memlat@17000010/governor");
     dn_add_governor(dn, "/sys/class/devfreq/gs_memlat_devfreq:devfreq_mif_cpu7_memlat@17000010/governor");
+
+    dn_tweak_orig_capture(dn);
 }
 
-static void
-device_node_apply_save_tweaks(void)
-{
+/*
+ * Vendor tweak knobs: the value written at screen off (save) and the one
+ * written at screen on (boost). Nodes that do not exist are skipped.
+ */
+typedef struct {
+    const char *path;
+    const char *save;
+    const char *boost;
+} DeviceTweak;
+
+static const DeviceTweak dn_tweaks[] = {
     /* MediaTek CPUFreq */
-    dn_write_int_if_exists("/proc/cpufreq/cpufreq_power_mode", 1);
-    dn_write_int_if_exists("/proc/cpufreq/cpufreq_cci_mode", 0);
-    dn_write_int_if_exists("/proc/cpufreq/cpufreq_sched_disable", 1);
-    dn_write_int_if_exists("/proc/cpufreq/MT_CPU_DVFS_CCI/cpufreq_turbo_mode", 0);
-    dn_write_int_if_exists("/proc/cpufreq/MT_CPU_DVFS_L/cpufreq_turbo_mode", 0);
-    dn_write_int_if_exists("/proc/cpufreq/MT_CPU_DVFS_LL/cpufreq_turbo_mode", 0);
+    { "/proc/cpufreq/cpufreq_power_mode", "1", "3" },
+    { "/proc/cpufreq/cpufreq_cci_mode", "0", "1" },
+    { "/proc/cpufreq/cpufreq_sched_disable", "1", "0" },
+    { "/proc/cpufreq/MT_CPU_DVFS_CCI/cpufreq_turbo_mode", "0", "1" },
+    { "/proc/cpufreq/MT_CPU_DVFS_L/cpufreq_turbo_mode", "0", "1" },
+    { "/proc/cpufreq/MT_CPU_DVFS_LL/cpufreq_turbo_mode", "0", "1" },
 
     /* MediaTek */
-    dn_write_int_if_exists("/sys/devices/system/cpu/perf/enable", 0);
-    dn_write_int_if_exists("/sys/devices/system/cpu/sched/sched_boost", 0);
+    { "/sys/devices/system/cpu/perf/enable", "0", "1" },
+    { "/sys/devices/system/cpu/sched/sched_boost", "0", "1" },
 
     /* MediaTek GED */
-    dn_write_int_if_exists("/sys/module/ged/parameters/boost_gpu_enable", 0);
-    dn_write_int_if_exists("/sys/module/ged/parameters/boost_extra", 0);
-    dn_write_int_if_exists("/sys/module/ged/parameters/gx_game_mode", 0);
-    dn_write_int_if_exists("/sys/module/ged/parameters/gx_boost_on", 0);
-    dn_write_int_if_exists("/sys/module/ged/parameters/ged_force_mdp_enable", 1);
-    dn_write_int_if_exists("/sys/module/ged/parameters/boost_amp", 0);
-    dn_write_int_if_exists("/sys/module/ged/parameters/ged_boost_enable", 0);
-    dn_write_int_if_exists("/sys/module/ged/parameters/enable_gpu_boost", 0);
-    dn_write_int_if_exists("/sys/module/ged/parameters/enable_cpu_boost", 0);
+    { "/sys/module/ged/parameters/boost_gpu_enable", "0", "1" },
+    { "/sys/module/ged/parameters/boost_extra", "0", "1" },
+    { "/sys/module/ged/parameters/gx_game_mode", "0", "1" },
+    { "/sys/module/ged/parameters/gx_boost_on", "0", "1" },
+    { "/sys/module/ged/parameters/ged_force_mdp_enable", "1", "1" },
+    { "/sys/module/ged/parameters/boost_amp", "0", "1" },
+    { "/sys/module/ged/parameters/ged_boost_enable", "0", "1" },
+    { "/sys/module/ged/parameters/enable_gpu_boost", "0", "1" },
+    { "/sys/module/ged/parameters/enable_cpu_boost", "0", "1" },
 
     /* MediaTek GBE */
-    dn_write_int_if_exists("/sys/kernel/gbe/gbe_enable1", 0);
-    dn_write_int_if_exists("/sys/kernel/gbe/gbe_enable2", 0);
-    dn_write_int_if_exists("/sys/kernel/gbe/gbe2_max_boost_cnt", 2);
-    dn_write_int_if_exists("/sys/kernel/gbe/gbe2_loading_th", 5);
+    { "/sys/kernel/gbe/gbe_enable1", "0", "1" },
+    { "/sys/kernel/gbe/gbe_enable2", "0", "1" },
+    { "/sys/kernel/gbe/gbe2_max_boost_cnt", "2", "2" },
+    { "/sys/kernel/gbe/gbe2_loading_th", "5", "20" },
 
     /* QCOM */
-    dn_write_str_if_exists("/sys/module/lpm_levels/parameters/sleep_disabled", "N");
-    dn_write_str_if_exists("/sys/module/lpm_levels/parameters/lpm_prediction", "N");
-    dn_write_str_if_exists("/sys/module/lpm_levels/parameters/lpm_ipi_prediction", "N");
-    dn_write_int_if_exists("/sys/kernel/debug/msm_vidc/fw_low_power_mode", 1);
+    { "/sys/module/lpm_levels/parameters/sleep_disabled", "N", "Y" },
+    { "/sys/module/lpm_levels/parameters/lpm_prediction", "N", "N" },
+    { "/sys/module/lpm_levels/parameters/lpm_ipi_prediction", "N", "N" },
+    { "/sys/kernel/debug/msm_vidc/fw_low_power_mode", "1", "0" },
 
     /* UFS */
-    dn_write_int_if_exists("/sys/devices/platform/soc/1d84000.ufshc/hibern8_on_idle_enable", 1);
-    dn_write_int_if_exists("/sys/devices/platform/soc/1d84000.ufshc/clkgate_enable", 1);
-    dn_write_int_if_exists("/sys/devices/platform/soc/1d84000.ufshc/clkscale_enable", 1);
+    { "/sys/devices/platform/soc/1d84000.ufshc/hibern8_on_idle_enable", "1", "0" },
+    { "/sys/devices/platform/soc/1d84000.ufshc/clkgate_enable", "1", "0" },
+    { "/sys/devices/platform/soc/1d84000.ufshc/clkscale_enable", "1", "0" },
 
     /* MediaTek FPSGO */
-    dn_write_int_if_exists("/sys/kernel/fpsgo/fstb/adopt_low_fps", 1);
-    dn_write_int_if_exists("/sys/kernel/fpsgo/fbt/boost_ta", 0);
-    dn_write_int_if_exists("/sys/kernel/fpsgo/common/gpu_block_boost", 0);
+    { "/sys/kernel/fpsgo/fstb/adopt_low_fps", "1", "0" },
+    { "/sys/kernel/fpsgo/fbt/boost_ta", "0", "1" },
+    { "/sys/kernel/fpsgo/common/gpu_block_boost", "0", "101" },
 
     /* MediaTek apusys */
-    dn_write_int_if_exists("/sys/kernel/apusys/mnoc_apu_qos_boost", 0);
+    { "/sys/kernel/apusys/mnoc_apu_qos_boost", "0", "1" },
 
     /* MediaTek perfmgr */
-    dn_write_int_if_exists("/proc/perfmgr/boost_ctrl/dram_ctrl/ddr", 0);
-    dn_write_int_if_exists("/proc/perfmgr/boost_ctrl/eas_ctrl/sched_boost", 0);
+    { "/proc/perfmgr/boost_ctrl/dram_ctrl/ddr", "0", "2" },
+    { "/proc/perfmgr/boost_ctrl/eas_ctrl/sched_boost", "0", "1" },
 
     /* DRM */
-    dn_write_str_if_exists("/sys/module/drm_kms_helper/parameters/poll", "N");
+    { "/sys/module/drm_kms_helper/parameters/poll", "N", "Y" },
 
     /* schedtune */
-    dn_write_int_if_exists("/sys/fs/cgroup/schedtune/schedtune.boost", 0);
-    dn_write_int_if_exists("/sys/fs/cgroup/schedtune/schedtune.prefer_idle", 0);
+    { "/sys/fs/cgroup/schedtune/schedtune.boost", "0", "40" },
+    { "/sys/fs/cgroup/schedtune/schedtune.prefer_idle", "0", "1" },
+};
+
+G_STATIC_ASSERT(G_N_ELEMENTS(dn_tweaks) <= DEVICE_NODE_TWEAK_MAX);
+
+/*
+ * The pre-batman value of each knob is kept here so that BOOST=false can put
+ * it back at screen on. It lives in /run so that a restart of batman while the
+ * screen is off does not take batman's own save values for the originals; it
+ * is gone after a reboot, when the knobs are back at their boot values too.
+ */
+#define DN_TWEAK_ORIG_DIR  "/run/batman"
+#define DN_TWEAK_ORIG_PATH DN_TWEAK_ORIG_DIR "/tweak-defaults"
+
+/*
+ * Only values that read back in the form they are written are kept: a plain
+ * integer or Y/N. MediaTek's /proc/cpufreq nodes read back as prose
+ * ("Low Power mode", "turbo_mode(support, disable, loc_opt) = 0, 1, 0") and
+ * cannot be restored, so with BOOST=false they are not touched at all.
+ */
+static gboolean
+dn_value_restorable(const char *v)
+{
+    const char *c = v;
+
+    if (v == NULL || v[0] == '\0')
+        return FALSE;
+    if ((v[0] == 'Y' || v[0] == 'N') && v[1] == '\0')
+        return TRUE;
+    if (*c == '-')
+        c++;
+    if (*c == '\0')
+        return FALSE;
+    for (; *c; c++) {
+        if (!g_ascii_isdigit(*c))
+            return FALSE;
+    }
+    return TRUE;
+}
+
+static gboolean
+dn_tweak_orig_load(DeviceNodeContext *dn)
+{
+    g_autofree char *buf = NULL;
+    g_auto(GStrv) lines = NULL;
+    gboolean any = FALSE;
+    gsize i, j;
+
+    if (!g_file_get_contents(DN_TWEAK_ORIG_PATH, &buf, NULL, NULL))
+        return FALSE;
+
+    lines = g_strsplit(buf, "\n", -1);
+    for (i = 0; lines[i]; i++) {
+        char *tab = strchr(lines[i], '\t');
+
+        if (tab == NULL)
+            continue;
+        *tab = '\0';
+        if (!dn_value_restorable(tab + 1))
+            continue;
+
+        for (j = 0; j < G_N_ELEMENTS(dn_tweaks); j++) {
+            if (strcmp(dn_tweaks[j].path, lines[i]) != 0)
+                continue;
+            g_strlcpy(dn->tweak_orig[j], tab + 1, sizeof(dn->tweak_orig[j]));
+            any = TRUE;
+            break;
+        }
+    }
+
+    return any;
 }
 
 static void
-device_node_apply_boost_tweaks(void)
+dn_tweak_orig_capture(DeviceNodeContext *dn)
 {
-    /* MediaTek CPUFreq */
-    dn_write_int_if_exists("/proc/cpufreq/cpufreq_power_mode", 3);
-    dn_write_int_if_exists("/proc/cpufreq/cpufreq_cci_mode", 1);
-    dn_write_int_if_exists("/proc/cpufreq/cpufreq_sched_disable", 0);
-    dn_write_int_if_exists("/proc/cpufreq/MT_CPU_DVFS_CCI/cpufreq_turbo_mode", 1);
-    dn_write_int_if_exists("/proc/cpufreq/MT_CPU_DVFS_L/cpufreq_turbo_mode", 1);
-    dn_write_int_if_exists("/proc/cpufreq/MT_CPU_DVFS_LL/cpufreq_turbo_mode", 1);
+    g_autoptr(GString) out = g_string_new(NULL);
+    g_autoptr(GError) err = NULL;
+    gsize i;
 
-    /* MediaTek */
-    dn_write_int_if_exists("/sys/devices/system/cpu/perf/enable", 1);
-    dn_write_int_if_exists("/sys/devices/system/cpu/sched/sched_boost", 1);
+    if (dn_tweak_orig_load(dn)) {
+        g_debug("device_node: tweak defaults loaded from %s", DN_TWEAK_ORIG_PATH);
+        return;
+    }
 
-    /* MediaTek GED */
-    dn_write_int_if_exists("/sys/module/ged/parameters/boost_gpu_enable", 1);
-    dn_write_int_if_exists("/sys/module/ged/parameters/boost_extra", 1);
-    dn_write_int_if_exists("/sys/module/ged/parameters/gx_game_mode", 1);
-    dn_write_int_if_exists("/sys/module/ged/parameters/gx_boost_on", 1);
-    dn_write_int_if_exists("/sys/module/ged/parameters/ged_force_mdp_enable", 1);
-    dn_write_int_if_exists("/sys/module/ged/parameters/boost_amp", 1);
-    dn_write_int_if_exists("/sys/module/ged/parameters/ged_boost_enable", 1);
-    dn_write_int_if_exists("/sys/module/ged/parameters/enable_gpu_boost", 1);
-    dn_write_int_if_exists("/sys/module/ged/parameters/enable_cpu_boost", 1);
+    for (i = 0; i < G_N_ELEMENTS(dn_tweaks); i++) {
+        char val[sizeof(dn->tweak_orig[0])];
 
-    /* MediaTek GBE */
-    dn_write_int_if_exists("/sys/kernel/gbe/gbe_enable1", 1);
-    dn_write_int_if_exists("/sys/kernel/gbe/gbe_enable2", 1);
-    dn_write_int_if_exists("/sys/kernel/gbe/gbe2_max_boost_cnt", 2);
-    dn_write_int_if_exists("/sys/kernel/gbe/gbe2_loading_th", 20);
+        if (!read_str(dn_tweaks[i].path, val, sizeof(val)))
+            continue;
+        if (!dn_value_restorable(val)) {
+            g_debug("device_node: %s reads back as \"%s\", not restorable",
+                    dn_tweaks[i].path, val);
+            continue;
+        }
 
-    /* QCOM */
-    dn_write_str_if_exists("/sys/module/lpm_levels/parameters/sleep_disabled", "Y");
-    dn_write_str_if_exists("/sys/module/lpm_levels/parameters/lpm_prediction", "N");
-    dn_write_str_if_exists("/sys/module/lpm_levels/parameters/lpm_ipi_prediction", "N");
-    dn_write_int_if_exists("/sys/kernel/debug/msm_vidc/fw_low_power_mode", 0);
+        g_strlcpy(dn->tweak_orig[i], val, sizeof(dn->tweak_orig[i]));
+        g_string_append_printf(out, "%s\t%s\n", dn_tweaks[i].path, val);
+    }
 
-    /* UFS */
-    dn_write_int_if_exists("/sys/devices/platform/soc/1d84000.ufshc/hibern8_on_idle_enable", 0);
-    dn_write_int_if_exists("/sys/devices/platform/soc/1d84000.ufshc/clkgate_enable", 0);
-    dn_write_int_if_exists("/sys/devices/platform/soc/1d84000.ufshc/clkscale_enable", 0);
+    if (g_mkdir_with_parents(DN_TWEAK_ORIG_DIR, 0755) != 0 ||
+        !g_file_set_contents(DN_TWEAK_ORIG_PATH, out->str, (gssize)out->len, &err))
+        g_debug("device_node: could not save tweak defaults: %s",
+                err ? err->message : g_strerror(errno));
+}
 
-    /* MediaTek fpsgo */
-    dn_write_int_if_exists("/sys/kernel/fpsgo/fstb/adopt_low_fps", 0);
-    dn_write_int_if_exists("/sys/kernel/fpsgo/fbt/boost_ta", 1);
-    dn_write_int_if_exists("/sys/kernel/fpsgo/common/gpu_block_boost", 101);
+static void
+dn_apply_tweaks(DeviceNodeContext *dn, const BatmanConfig *cfg, gboolean save)
+{
+    gsize i;
 
-    /* MediaTek apusys */
-    dn_write_int_if_exists("/sys/kernel/apusys/mnoc_apu_qos_boost", 1);
+    if (!cfg->tweaks_enabled)
+        return;
 
-    /* MediaTek perfmgr */
-    dn_write_int_if_exists("/proc/perfmgr/boost_ctrl/dram_ctrl/ddr", 2);
-    dn_write_int_if_exists("/proc/perfmgr/boost_ctrl/eas_ctrl/sched_boost", 1);
+    for (i = 0; i < G_N_ELEMENTS(dn_tweaks); i++) {
+        const DeviceTweak *t = &dn_tweaks[i];
 
-    /* DRM */
-    dn_write_str_if_exists("/sys/module/drm_kms_helper/parameters/poll", "Y");
+        if (cfg->boost_enabled) {
+            dn_write_str_if_exists(t->path, save ? t->save : t->boost);
+            continue;
+        }
 
-    /* schedtune */
-    dn_write_int_if_exists("/sys/fs/cgroup/schedtune/schedtune.boost", 40);
-    dn_write_int_if_exists("/sys/fs/cgroup/schedtune/schedtune.prefer_idle", 1);
+        /* BOOST=false: only touch knobs whose original value is known,
+         * and put that value back instead of boosting */
+        if (dn->tweak_orig[i][0] == '\0')
+            continue;
+        if (save)
+            dn_write_str_if_exists(t->path, t->save);
+        else if (dn->tweaks_saved)
+            dn_write_str_if_exists(t->path, dn->tweak_orig[i]);
+    }
+
+    if (!cfg->boost_enabled)
+        dn->tweaks_saved = save;
 }
 
 void
-device_node_apply_powersave(const DeviceNodeContext *dn, const BatmanConfig *cfg)
+device_node_apply_powersave(DeviceNodeContext *dn, const BatmanConfig *cfg)
 {
     int i;
 
@@ -253,11 +330,11 @@ device_node_apply_powersave(const DeviceNodeContext *dn, const BatmanConfig *cfg
         }
     }
 
-    device_node_apply_save_tweaks();
+    dn_apply_tweaks(dn, cfg, TRUE);
 }
 
 void
-device_node_apply_default(const DeviceNodeContext *dn, const BatmanConfig *cfg)
+device_node_apply_default(DeviceNodeContext *dn, const BatmanConfig *cfg)
 {
     int i;
 
@@ -279,5 +356,5 @@ device_node_apply_default(const DeviceNodeContext *dn, const BatmanConfig *cfg)
         }
     }
 
-    device_node_apply_boost_tweaks();
+    dn_apply_tweaks(dn, cfg, FALSE);
 }
