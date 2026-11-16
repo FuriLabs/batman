@@ -158,7 +158,7 @@ device_node_apply_save_tweaks(void)
     dn_write_int_if_exists("/sys/kernel/apusys/mnoc_apu_qos_boost", 0);
 
     /* MediaTek perfmgr */
-    dn_write_int_if_exists("/proc/perfmgr/boost_ctrl/dram_ctrl/ddr", 0);
+    dn_write_int_if_exists("/proc/perfmgr/boost_ctrl/dram_ctrl/ddr", 4);
     dn_write_int_if_exists("/proc/perfmgr/boost_ctrl/eas_ctrl/sched_boost", 0);
 
     /* DRM */
