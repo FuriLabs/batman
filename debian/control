@@ -24,7 +24,7 @@ Vcs-Git: https://github.com/FakeShell/batman.git
 
 Package: batman
 Architecture: any
-Depends: ${misc:Depends},
+Depends: ${misc:Depends}, ${shlibs:Depends},
 Recommends: nfcd-batman-plugin (= ${binary:Version}),
             batman-system-monitor (= ${binary:Version}),
 Replaces: power-profiles-daemon, batman2ppd,
@@ -32,6 +32,29 @@ Provides: power-profiles-daemon, batman2ppd,
 Conflicts: power-profiles-daemon, batman2ppd,
 Description: batman
  A battery management service for Linux phones
+
+Package: libbatman1
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends: ${misc:Depends}, ${shlibs:Depends},
+Description: libbatman
+ A battery management service for Linux phones - tuning engine library
+
+Package: libbatman-dev
+Section: libdevel
+Architecture: any
+Multi-Arch: same
+Depends: ${misc:Depends},
+         libbatman1 (= ${binary:Version}),
+         libglib2.0-dev,
+         libgbinder-dev,
+         libnl-3-dev,
+         libnl-genl-3-dev,
+         libnl-route-3-dev,
+Description: libbatman development files
+ A battery management service for Linux phones - headers and pkg-config
+ file for the tuning engine library
 
 Package: batman-system-monitor
 Architecture: any
